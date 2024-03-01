@@ -1,0 +1,9 @@
+menu "LUA"
+
+config LUA_ENABLE
+    bool "Enable lua"
+    default "y"
+    help
+        For lua script.
+
+endmenu
