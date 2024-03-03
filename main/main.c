@@ -32,7 +32,7 @@ static esp_vfs_spiffs_conf_t conf = {
 
 char *get_partition_label(void)
 {
-	return conf.partition_label;
+  return (char *) conf.partition_label;
 }
 
 #ifdef WRITE_TEST_LUA_FILE

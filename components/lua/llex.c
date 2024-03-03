@@ -360,26 +360,31 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         }
         else if (sep == -1) return '[';
         else luaX_lexerror(ls, "invalid long string delimiter", TK_STRING);
+	break;
       }
       case '=': {
         next(ls);
         if (ls->current != '=') return '=';
         else { next(ls); return TK_EQ; }
+	break;
       }
       case '<': {
         next(ls);
         if (ls->current != '=') return '<';
         else { next(ls); return TK_LE; }
+	break;
       }
       case '>': {
         next(ls);
         if (ls->current != '=') return '>';
         else { next(ls); return TK_GE; }
+	break;
       }
       case '~': {
         next(ls);
         if (ls->current != '=') return '~';
         else { next(ls); return TK_NE; }
+	break;
       }
       case '"':
       case '\'': {
@@ -398,6 +403,7 @@ static int llex (LexState *ls, SemInfo *seminfo) {
           read_numeral(ls, seminfo);
           return TK_NUMBER;
         }
+	break;
       }
       case EOZ: {
         return TK_EOS;

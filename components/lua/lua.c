@@ -42,9 +42,9 @@ static const char *progname = LUA_PROGNAME;
 
 void uart_sendStr(const char *str)
 {
-    while(*str) {
-        uart_tx_one_char(*str++);
-    }
+  while(*str) {
+    uart_tx_one_char(*str++);
+  }
 }
 
 static void lstop (lua_State *L, lua_Debug *ar) {
@@ -55,31 +55,31 @@ static void lstop (lua_State *L, lua_Debug *ar) {
 
 static void laction (int i) {
   signal(i, SIG_DFL); /* if another SIGINT happens before lstop,
-                              terminate process (default action) */
+			 terminate process (default action) */
   lua_sethook(globalL, lstop, LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1);
 }
 
 static void print_usage (void) {
   fprintf(stderr,
-  "usage: %s [options] [script [args]].\n"
-  "Available options are:\n"
-  "  -e stat  execute string " LUA_QL("stat") "\n"
-  "  -l name  require library " LUA_QL("name") "\n"
-  "  -m limit set memory limit. (units are in Kbytes)\n"
-  "  -i       enter interactive mode after executing " LUA_QL("script") "\n"
-  "  -v       show version information\n"
-  "  --       stop handling options\n"
-  "  -        execute stdin and stop handling options\n"
-  ,
-  progname);
+	  "usage: %s [options] [script [args]].\n"
+	  "Available options are:\n"
+	  "  -e stat  execute string " LUA_QL("stat") "\n"
+	  "  -l name  require library " LUA_QL("name") "\n"
+	  "  -m limit set memory limit. (units are in Kbytes)\n"
+	  "  -i       enter interactive mode after executing " LUA_QL("script") "\n"
+	  "  -v       show version information\n"
+	  "  --       stop handling options\n"
+	  "  -        execute stdin and stop handling options\n"
+	  ,
+	  progname);
   fflush(stderr);
 }
 
 //doit
 void l_message (const char *pname, const char *msg) {
   /*if (pname) fprintf(stderr, "%s: ", pname);
-  fprintf(stderr, "%s\n", msg);
-  fflush(stderr);
+    fprintf(stderr, "%s\n", msg);
+    fflush(stderr);
   */
   if (pname) luai_writestringerror("%s: ", pname);
   luai_writestringerror("%s\r\n", msg);
@@ -239,22 +239,22 @@ static void mydofile(lua_State *L)
   
   file_fd = SPIFFS_open(&fs,fn,SPIFFS_RDONLY,0);
   if(file_fd<0)
-  {
-    char *fn2 = "init.lc";
-    file_fd = SPIFFS_open(&fs,fn2,SPIFFS_RDONLY,0);
-    if(file_fd<0)
-      l_message(NULL,"cannot open init.lua or init.lc");
-    else
+    {
+      char *fn2 = "init.lc";
+      file_fd = SPIFFS_open(&fs,fn2,SPIFFS_RDONLY,0);
+      if(file_fd<0)
+	l_message(NULL,"cannot open init.lua or init.lc");
+      else
+	{
+	  SPIFFS_close(&fs,file_fd);
+	  dofile(L,"init.lc");
+	}
+    }
+  else
     {
       SPIFFS_close(&fs,file_fd);
-      dofile(L,"init.lc");
-    }
-  }
-  else
-  {
-     SPIFFS_close(&fs,file_fd);
-     dofile(L,"init.lua");
-  }    
+      dofile(L,"init.lua");
+    }    
 }
 
 static void dotty (lua_State *L) {
@@ -272,8 +272,8 @@ static void dotty (lua_State *L) {
       lua_insert(L, 1);
       if (lua_pcall(L, lua_gettop(L)-1, 0, 0) != 0)
         l_message(progname, lua_pushfstring(L,
-                               "error calling " LUA_QL("print") " (%s)",
-                               lua_tostring(L, -1)));
+					    "error calling " LUA_QL("print") " (%s)",
+					    lua_tostring(L, -1)));
     }
     lua_gc(L, LUA_GCCOLLECT, 0);//doit
   }
@@ -281,7 +281,7 @@ static void dotty (lua_State *L) {
   
   luai_writeline();//doit
   /*fputs("\n", stdout);
-  fflush(stdout);*/
+    fflush(stdout);*/
   progname = oldprogname;
 }
 
@@ -312,30 +312,33 @@ static int collectargs (char **argv, int *pi, int *pv, int *pe) {
   int i;
   for (i = 1; argv[i] != NULL; i++) {
     if (argv[i][0] != '-')  /* not an option? */
-        return i;
+      return i;
     switch (argv[i][1]) {  /* option */
-      case '-':
-        notail(argv[i]);
-        return (argv[i+1] != NULL ? i+1 : 0);
-      case '\0':
-        return i;
-      case 'i':
-        notail(argv[i]);
-        *pi = 1;  /* go through */
-      case 'v':
-        notail(argv[i]);
-        *pv = 1;
-        break;
-      case 'e':
-        *pe = 1;  /* go through */
-      case 'm':   /* go through */
-      case 'l':
-        if (argv[i][2] == '\0') {
-          i++;
-          if (argv[i] == NULL) return -1;
-        }
-        break;
-      default: return -1;  /* invalid option */
+    case '-':
+      notail(argv[i]);
+      return (argv[i+1] != NULL ? i+1 : 0);
+    case '\0':
+      return i;
+    case 'i':
+      notail(argv[i]);
+      *pi = 1;  /* go through */
+      [[fallthrough]];
+    case 'v':
+      notail(argv[i]);
+      *pv = 1;
+      break;
+    case 'e':
+      *pe = 1;  /* go through */
+      [[fallthrough]];
+    case 'm':   /* go through */
+      [[fallthrough]];
+    case 'l':
+      if (argv[i][2] == '\0') {
+	i++;
+	if (argv[i] == NULL) return -1;
+      }
+      break;
+    default: return -1;  /* invalid option */
     }
   }
   return 0;
@@ -348,32 +351,32 @@ static int runargs (lua_State *L, char **argv, int n) {
     if (argv[i] == NULL) continue;
     lua_assert(argv[i][0] == '-');
     switch (argv[i][1]) {  /* option */
-      case 'e': {
-        const char *chunk = argv[i] + 2;
-        if (*chunk == '\0') chunk = argv[++i];
-        lua_assert(chunk != NULL);
-        if (dostring(L, chunk, "=(command line)") != 0)
-          return 1;
-        break;
-      }
-      case 'm': {
-        const char *limit = argv[i] + 2;
-        int memlimit=0;
-        if (*limit == '\0') limit = argv[++i];
-        lua_assert(limit != NULL);
-        memlimit = atoi(limit);
-        lua_gc(L, LUA_GCSETMEMLIMIT, memlimit);
-        break;
-      }
-      case 'l': {
-        const char *filename = argv[i] + 2;
-        if (*filename == '\0') filename = argv[++i];
-        lua_assert(filename != NULL);
-        if (dolibrary(L, filename))
-          return 1;  /* stop if file fails */
-        break;
-      }
-      default: break;
+    case 'e': {
+      const char *chunk = argv[i] + 2;
+      if (*chunk == '\0') chunk = argv[++i];
+      lua_assert(chunk != NULL);
+      if (dostring(L, chunk, "=(command line)") != 0)
+	return 1;
+      break;
+    }
+    case 'm': {
+      const char *limit = argv[i] + 2;
+      int memlimit=0;
+      if (*limit == '\0') limit = argv[++i];
+      lua_assert(limit != NULL);
+      memlimit = atoi(limit);
+      lua_gc(L, LUA_GCSETMEMLIMIT, memlimit);
+      break;
+    }
+    case 'l': {
+      const char *filename = argv[i] + 2;
+      if (*filename == '\0') filename = argv[++i];
+      lua_assert(filename != NULL);
+      if (dolibrary(L, filename))
+	return 1;  /* stop if file fails */
+      break;
+    }
+    default: break;
     }
   }
   return 0;
@@ -388,20 +391,20 @@ static int handle_luainit (lua_State *L) {
   const char *init = c_getenv(LUA_INIT);
   ESP_LOGI(TAG, "init file name: %s", init);
   if (init == NULL) {
-	ESP_LOGI(TAG, "lua init file not found");
-	return 0;  /* status OK */
+    ESP_LOGI(TAG, "lua init file not found");
+    return 0;  /* status OK */
   } else if (init[0] == '@') {
 #if 0
-	ESP_LOGI(TAG, "lua init file not found2");
+    ESP_LOGI(TAG, "lua init file not found2");
     return dofile(L, init+1);
 #else
-	ESP_LOGI(TAG, "handle lua init file on FS");
-	char full_path[32] = {0};
-	sprintf(full_path, "%s/%s", LUA_INIT_FILE_DIR, init+1);
-	return dofsfile(L, full_path);
+    ESP_LOGI(TAG, "handle lua init file on FS");
+    char full_path[32] = {0};
+    sprintf(full_path, "%s/%s", LUA_INIT_FILE_DIR, init+1);
+    return dofsfile(L, full_path);
 #endif
   } else {
-	ESP_LOGI(TAG, "lua init do string");
+    ESP_LOGI(TAG, "lua init do string");
     return dostring(L, init, "=" LUA_INIT);
   }
 }
@@ -458,8 +461,8 @@ static int pmain (lua_State *L) {
 }
 
 int do_luainit (void) {
-	lua_State *L = gLoad.L;
-	return dofsfile(L, "init.lua");
+  lua_State *L = gLoad.L;
+  return dofsfile(L, "init.lua");
 }
 
 static void dojob(lua_Load *load);
@@ -478,7 +481,6 @@ static void dojob(lua_Load *load) {
   char *b = load->line;
   lua_State *L = load->L;
 
-  const char *oldprogname = progname;
   progname = NULL;
 
   do{
@@ -486,19 +488,19 @@ static void dojob(lua_Load *load) {
       l = c_strlen(b);
       if (l > 0 && b[l-1] == '\n')  /* line ends with newline? */
         b[l-1] = '\0';  /* remove it */
-	  if (load->firstline && b[0] == '=') {  /* first line starts with `=' ? */
-		lua_pushfstring(L, "return %s", b+1);  /* change it to `return' */
-	  } else {
-		lua_pushstring(L, b);
-	  }
-	  if(load->firstline != 1) {
+      if (load->firstline && b[0] == '=') {  /* first line starts with `=' ? */
+	lua_pushfstring(L, "return %s", b+1);  /* change it to `return' */
+      } else {
+	lua_pushstring(L, b);
+      }
+      if(load->firstline != 1) {
         lua_pushliteral(L, "\n");  /* add a new line... */
         lua_insert(L, -2);  /* ...between the two lines */
         lua_concat(L, 3);  /* join them */
       }
 	  
-	  status = luaL_loadbuffer(L, lua_tostring(L, 1), lua_strlen(L, 1), "=stdin");
-	  if (!incomplete(L, status)) {  /* cannot try to add lines? */
+      status = luaL_loadbuffer(L, lua_tostring(L, 1), lua_strlen(L, 1), "=stdin");
+      if (!incomplete(L, status)) {  /* cannot try to add lines? */
         lua_remove(L, 1);  /* remove line */
         if (status == 0) {
           status = docall(L, 0, 0);
@@ -509,7 +511,7 @@ static void dojob(lua_Load *load) {
           lua_insert(L, 1);
           if (lua_pcall(L, lua_gettop(L)-1, 0, 0) != 0) {
             l_message(progname, lua_pushfstring(L, "error calling " LUA_QL("print") " (%s)", lua_tostring(L, -1)));
-		  }
+	  }
         }
         load->firstline = 1;
         load->prmt = get_prompt(L, 1);
@@ -519,14 +521,14 @@ static void dojob(lua_Load *load) {
       } else { // not finish inputing, waiting for content
         load->firstline = 0;
         load->prmt = get_prompt(L, 0);
-		load->curr_position = load->line_position;
-		uart_sendStr(load->prmt);
-		return;
+	load->curr_position = load->line_position;
+	uart_sendStr(load->prmt);
+	return;
       }
-	  /*if (status) {
-		uart_sendStr(lua_tostring(L, -1));
-		lua_pop(L, 1);
-	  }*/
+      /*if (status) {
+	uart_sendStr(lua_tostring(L, -1));
+	lua_pop(L, 1);
+	}*/
     }
   }while(0);
   
@@ -548,35 +550,35 @@ static bool readline(lua_Load *load){
     // reset marker, will be finally set below when newline is processed
     last_nl_char = '\0';
     /* handle CR & LF characters
-      filters second char of LF&CR (\n\r) or CR&LF (\r\n) sequences */
+       filters second char of LF&CR (\n\r) or CR&LF (\r\n) sequences */
     if ((ch == '\r' && tmp_last_nl_char == '\n') || // \n\r sequence -> skip \r
-          (ch == '\n' && tmp_last_nl_char == '\r'))   // \r\n sequence -> skip \n
-    {
-      continue;
-    }
+	(ch == '\n' && tmp_last_nl_char == '\r'))   // \r\n sequence -> skip \n
+      {
+	continue;
+      }
     
     if (ch == 0x1b || is_key_button > 0) { //handle direct keys
-	  if (is_key_button == 2) {
-		if (ch == 0x44) { //left key
-		  if (load->line_position > 0 && load->curr_position > 0) {
-			uart_tx_one_char('\b');
-			load->curr_position--;
-		  }
-		} else if (ch == 0x43) { //right key
-		  if (load->curr_position < load->line_position) {
-			uart_tx_one_char(line_buffer[load->curr_position]);
-			load->curr_position++;
-		  }
-		} else if (ch == 0x41) { //up key
-			//skip
-		} else if (ch == 0x42) { //down key
-			//do nothing
-		}
-		is_key_button = 0;
-		continue;
+      if (is_key_button == 2) {
+	if (ch == 0x44) { //left key
+	  if (load->line_position > 0 && load->curr_position > 0) {
+	    uart_tx_one_char('\b');
+	    load->curr_position--;
 	  }
-	  is_key_button++;
-	  continue;
+	} else if (ch == 0x43) { //right key
+	  if (load->curr_position < load->line_position) {
+	    uart_tx_one_char(line_buffer[load->curr_position]);
+	    load->curr_position++;
+	  }
+	} else if (ch == 0x41) { //up key
+	  //skip
+	} else if (ch == 0x42) { //down key
+	  //do nothing
+	}
+	is_key_button = 0;
+	continue;
+      }
+      is_key_button++;
+      continue;
     }
 	
     if (ch == 0x7f || ch == 0x08) {
@@ -585,18 +587,18 @@ static bool readline(lua_Load *load){
         uart_tx_one_char(' ');
         uart_tx_one_char(0x08);
         load->line_position--;
-		load->curr_position--;
-		if (load->curr_position < load->line_position) { //handle case that delete character between a string
-			int num = load->line_position - load->curr_position;
-			for (int i = 0; i < num; i++) {
-				uart_tx_one_char(line_buffer[i+load->curr_position+1]);
-			}
-			uart_tx_one_char(' ');
-			for (int i = 0; i < num+1; i++) {
-				uart_tx_one_char('\b');
-			}
-			memcpy(line_buffer+load->curr_position, line_buffer+load->curr_position+1, num); 
-		}
+	load->curr_position--;
+	if (load->curr_position < load->line_position) { //handle case that delete character between a string
+	  int num = load->line_position - load->curr_position;
+	  for (int i = 0; i < num; i++) {
+	    uart_tx_one_char(line_buffer[i+load->curr_position+1]);
+	  }
+	  uart_tx_one_char(' ');
+	  for (int i = 0; i < num+1; i++) {
+	    uart_tx_one_char('\b');
+	  }
+	  memcpy(line_buffer+load->curr_position, line_buffer+load->curr_position+1, num); 
+	}
       } 
       line_buffer[load->line_position] = 0;
       continue;
@@ -606,43 +608,43 @@ static bool readline(lua_Load *load){
     if (ch == '\r' || ch == '\n') {
       last_nl_char = ch;
       line_buffer[load->line_position] = 0;
-	  printf("\r\n");
+      printf("\r\n");
       if (load->line_position == 0){
         /* Get a empty line, then go to get a new line */
-		uart_sendStr(load->prmt);
+	uart_sendStr(load->prmt);
       } else {
-		load->done = 1;
+	load->done = 1;
         need_dojob = true;
       }
-	  load->curr_position = 0;
+      load->curr_position = 0;
       continue;
     }
 
     /* it's a large line, discard it */
     if ( load->line_position + 1 >= LUA_MAXINPUT ){
       load->line_position = 0;
-	  load->curr_position = 0;
+      load->curr_position = 0;
     }
 	
-	/* handle case that insert char between a string */
-	if (load->curr_position != load->line_position) {
-	  uart_tx_one_char(ch);
-	  int num = load->line_position - load->curr_position;
-	  for (int i = 0; i < num; i++) {
-		uart_tx_one_char(line_buffer[load->curr_position+i]); 
-	  }
-	  for (int i = 0; i < num; i++) { //insert char, right move the rest string  
-		line_buffer[load->line_position-i] = line_buffer[load->line_position-1-i];
-		uart_tx_one_char('\b'); 
-	  }
-	  line_buffer[load->curr_position] = ch; 
-	} else {
-	  uart_tx_one_char(ch); //add to tail directly
-	  line_buffer[load->line_position] = ch;
-	}
+    /* handle case that insert char between a string */
+    if (load->curr_position != load->line_position) {
+      uart_tx_one_char(ch);
+      int num = load->line_position - load->curr_position;
+      for (int i = 0; i < num; i++) {
+	uart_tx_one_char(line_buffer[load->curr_position+i]); 
+      }
+      for (int i = 0; i < num; i++) { //insert char, right move the rest string  
+	line_buffer[load->line_position-i] = line_buffer[load->line_position-1-i];
+	uart_tx_one_char('\b'); 
+      }
+      line_buffer[load->curr_position] = ch; 
+    } else {
+      uart_tx_one_char(ch); //add to tail directly
+      line_buffer[load->line_position] = ch;
+    }
     
     load->line_position++;
-	load->curr_position++; 
+    load->curr_position++; 
   }
   //ESP_LOGW(TAG, "%d %d", load->curr_position, load->line_position); 
   return need_dojob;
@@ -657,12 +659,10 @@ int lua_main (int argc, char **argv) {
 
   //luaL_openlibs(L);
 
-  int status;
   struct Smain s;
   s.argc = argc;
   s.argv = argv;
-  status = lua_cpcall(L, &pmain, &s);
-  //report(L, status);
+  (void) lua_cpcall(L, &pmain, &s);
 
   gLoad.L = L;
   gLoad.firstline = 1;

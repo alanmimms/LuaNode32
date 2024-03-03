@@ -132,7 +132,7 @@ static int io_pclose (lua_State *L) {
 */
 static int io_fclose (lua_State *L) {
   int *p = tofilep(L);
-  int ok = (fclose(p) == 0);
+  int ok = (fclose((FILE *) p) == 0);
   *p = ESP_OK - 1;
   return pushresult(L, ok, NULL);
 }
@@ -607,6 +607,7 @@ static void createmeta (lua_State *L) {
 }
 
 
+#if 0				/* Not used */
 static void createstdfile (lua_State *L, int f, int k, const char *fname) {
   *newfile(L) = f;
 #if LUA_OPTIMIZE_MEMORY != 2
@@ -623,6 +624,8 @@ static void createstdfile (lua_State *L, int f, int k, const char *fname) {
   lua_setfield(L, -2, fname);
 #endif
 }
+#endif
+
 
 #if LUA_OPTIMIZE_MEMORY != 2
 static void newfenv (lua_State *L, lua_CFunction cls) {
