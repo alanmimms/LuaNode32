@@ -9,86 +9,147 @@
 #include "lua.h"
 #include "utils.h"
 
-#define TXD_PIN (GPIO_NUM_1)
-#define RXD_PIN (GPIO_NUM_3)
+#define OUR_UART UART_NUM_0
+#define TXD_PIN GPIO_NUM_43
+#define RXD_PIN GPIO_NUM_44
 
-#define ECHO_TASK_STACK_SIZE    (3072)
-#define RX_BUF_SIZE 			1024
+#define UARTTASK_STACK_SIZE	3072
+#define RX_BUF_SIZE 		1024 /* MUST be power of two */
+#define RX_MOD_MASK		(RX_BUF_SIZE - 1)
+#if (RX_BUF_SIZE & (RX_BUF_SIZE - 1)) != 0
+#error "RX_BUF_SIZE must be a power of two!"
+#endif
 
 static const char *TAG = "uart";
 
-static uint8_t pbuff[RX_BUF_SIZE] = {0};
+static QueueHandle_t uartQ;
 
-static RcvMsgBuff rcvMsgBuff;
 
-bool uart_getc(char *c)
-{
-  if(rcvMsgBuff.pWritePos == rcvMsgBuff.pReadPos){   // empty
-    return false;
+// UART receive ring buffer, initialized statically to be empty.  When
+// rxHead == rxTail the buffer is empty. The rxHead and rxTail values
+// are indices into this ring, modulo RX_BUF_SIZE. New characters
+// received are inserted at rxTail, which is post-incremented so it
+// always points to the next unused byte in the ring. Characters are
+// extracted and sent to Lua from rxHead, which is post-incremented so
+// it always points to the oldest used byte in the ring.
+//
+// 0
+// 1
+// 2=A	H
+// 3=B
+// 4=C
+// 5	T
+// 6
+static uint8_t rxRingBuf[RX_BUF_SIZE];
+static unsigned rxHead = RX_BUF_SIZE / 2;
+static unsigned rxTail = RX_BUF_SIZE / 2;
+
+
+static inline int min(int a, int b) {
+    return a < b ? a : b;
+}
+
+
+static inline unsigned rxRingUsedSpace(void) {
+  return ((rxTail - rxHead) & RX_MOD_MASK);
+}
+
+
+static inline unsigned rxRingUnusedSpace(void) {
+  return RX_BUF_SIZE - 1 - rxRingUsedSpace();
+}
+
+
+static uint8_t rxRingGet(void) {
+  // SHOULD NEVER BE CALLED WHEN EMPTY
+  if (rxRingUsedSpace() == 0) {
+    ESP_LOGE(TAG, "Attempt to rxRingGet() when ring is empty!");
+    return 0;
   }
-  //ets_intr_lock();
-  *c = (char)*(rcvMsgBuff.pReadPos);
-  if (rcvMsgBuff.pReadPos == (rcvMsgBuff.pRcvMsgBuff + RX_BUF_SIZE)) {
-    rcvMsgBuff.pReadPos = rcvMsgBuff.pRcvMsgBuff ; 
-  } else {
-    rcvMsgBuff.pReadPos++;
+
+  uint8_t ch = rxRingBuf[rxHead++];
+  if (rxHead >= RX_BUF_SIZE) rxHead = 0;
+  return ch;
+}
+
+
+static void rxRingPut(uint8_t ch) {
+  // SHOULD NEVER BE CALLED WHEN FULL
+  if (rxRingUnusedSpace() == 0) {
+    ESP_LOGE(TAG, "Attempt to rxRingPut(0x%02X) when ring is full!", ch);
+    return;
   }
-  //ets_intr_unlock();
+
+  rxRingBuf[rxTail++] = ch;
+  if (rxTail >= RX_BUF_SIZE) rxTail = 0;
+}
+
+
+// This depends on being called only syncronously from the
+// `lua_handle_input()` function, which is called synchronously inside
+// the UART task and therefore eliminates the need to synchronize with
+// the UART task.
+bool uart_getc(char *c) {
+  if (rxRingUsedSpace() == 0) return false;
+  *c = rxRingGet();
   return true;
 }
 
-static void echo_task(void *arg)
+
+static void uartTask(void *arg)
 {
-  //ESP_LOGI(TAG, "My uart init\n");
-  if (rcvMsgBuff.pRcvMsgBuff != NULL) {
-    free(rcvMsgBuff.pRcvMsgBuff);
-  }
+  ESP_LOGI(TAG, "uartTask");
+  uart_flush(OUR_UART);
 
-  rcvMsgBuff.pRcvMsgBuff = malloc(RX_BUF_SIZE);
-  memset(rcvMsgBuff.pRcvMsgBuff, 0, RX_BUF_SIZE);
-  rcvMsgBuff.pWritePos = rcvMsgBuff.pRcvMsgBuff;
-  rcvMsgBuff.pReadPos = rcvMsgBuff.pRcvMsgBuff;
-	
   while(1) {
-    int len = uart_read_bytes(UART_NUM_0, pbuff, (RX_BUF_SIZE - 1), 20 / portTICK_PERIOD_MS);
-    //uart_write_bytes(UART_NUM_0, (const char *) (pbuff), len);
+    uart_event_t event;
+    uint8_t tempBuf[16];
 
-    if (len > 0) {
+    if (!xQueueReceive(uartQ, &event, portMAX_DELAY)) continue;
 
-      for (int i = 0; i < len; i++) {
-	*(rcvMsgBuff.pWritePos) = pbuff[i];
-	ESP_LOGI(TAG, "uart char:%d", pbuff[i]);
+    switch (event.type) {
+    case UART_DATA:
+      ESP_LOGI(TAG, "UART_DATA event size=%d used=%d unused=%d",
+	       event.size, (int) rxRingUsedSpace(), (int) rxRingUnusedSpace());
 
-	if (rcvMsgBuff.pWritePos == (rcvMsgBuff.pRcvMsgBuff + RX_BUF_SIZE)) {
-	  // overflow ...we may need more error handle here.
-	  rcvMsgBuff.pWritePos = rcvMsgBuff.pRcvMsgBuff ;
-	} else {
-	  rcvMsgBuff.pWritePos++;
+      do {
+	int readLen = min(sizeof(tempBuf), min(event.size, rxRingUnusedSpace()));
+
+	if (readLen > rxRingUnusedSpace()) {
+	  ESP_LOGW(TAG, "UART dropping %d bytes", readLen - rxRingUnusedSpace());
 	}
-      }
-#if 0
-      // received '\r\n' from ESPlore, response with '\r\n>' 
-      if (len == 2 && pbuff[0] == 0x0d && pbuff[1] == 0x0a) {
-	uint8_t resp[4] = {0x0d, 0x0a, 0x3e, 0x00};
-	uart_write_bytes(UART_NUM_0, resp, 3);
-	continue;
-      }
-#endif
-      lua_handle_input(false);
+
+	int len = uart_read_bytes(OUR_UART, tempBuf, readLen, 20 / portTICK_PERIOD_MS);
+
+	if (len > 0) {
+
+	  // Echo the bytes we read
+	  //	  uart_write_bytes(OUR_UART, tempBuf, len);
+
+	  // Copy the bytes into our ring
+	  for (int k = 0; k < len; ++k) rxRingPut(tempBuf[k]);
+
+	  lua_handle_input(false);
+	  event.size -= len;
+	} else {
+	  ESP_LOGI(TAG, "UART_DATA uart_read_bytes len=%d", len);
+	}
+      } while (event.size > 0);
+
+      break;
+
+    default:
+      ESP_LOGI(TAG, "%d event", (int) event.type);
+      break;
     }
   }
-	
-  if (rcvMsgBuff.pRcvMsgBuff != NULL) {
-    free(rcvMsgBuff.pRcvMsgBuff);
-  }
-
-  ESP_LOGE(TAG, "Error, uart task is dead!");
-  vTaskDelete(NULL);
 }
 
-void my_uart_init(void) 
-{
-  //ESP_LOGI(TAG, "My uart init\n");
+
+void my_uart_init(void) {
+  ESP_LOGI(TAG, "My uart init\n");
+  uart_flush(OUR_UART);
+
   const uart_config_t uart_config = {
     .baud_rate = 115200,
     .data_bits = UART_DATA_8_BITS,
@@ -99,9 +160,11 @@ void my_uart_init(void)
   };
 
   // We won't use a buffer for sending data.
-  uart_driver_install(UART_NUM_0, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
-  uart_param_config(UART_NUM_0, &uart_config);
-  uart_set_pin(UART_NUM_0, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-	
-  xTaskCreate(echo_task, "uart_echo_task", ECHO_TASK_STACK_SIZE, NULL, 10, NULL);
+  ESP_ERROR_CHECK(uart_driver_install(OUR_UART, RX_BUF_SIZE * 2, 0, 20, &uartQ, 0));
+  ESP_ERROR_CHECK(uart_param_config(OUR_UART, &uart_config));
+  ESP_ERROR_CHECK(uart_set_pin(OUR_UART, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+  ESP_ERROR_CHECK(uart_set_rts(OUR_UART, 1));
+  vTaskDelay(100 / portTICK_PERIOD_MS);
+
+  xTaskCreate(uartTask, "uartTask", UARTTASK_STACK_SIZE, NULL, 10, NULL);
 }

@@ -38,15 +38,15 @@ char *get_partition_label(void)
 #ifdef WRITE_TEST_LUA_FILE
 static void create_lua_init_file(void)
 {
-	ESP_LOGI(TAG, "Create init.lua");
-	FILE* f = fopen("/spiffs/init.lua", "w");
-	if (f == NULL) {
-		ESP_LOGE(TAG, "Failed to open file for writing");
-		return;
-	}
-	fprintf(f, "print('Hello LuaNode'); print(_VERSION)\n");
-	fclose(f);
-	ESP_LOGI(TAG, "File written");
+  ESP_LOGI(TAG, "Create init.lua");
+  FILE* f = fopen("/spiffs/init.lua", "w");
+  if (f == NULL) {
+    ESP_LOGE(TAG, "Failed to open file for writing");
+    return;
+  }
+  fprintf(f, "print('Hello LuaNode'); print(_VERSION)\n");
+  fclose(f);
+  ESP_LOGI(TAG, "File written");
 }
 #endif
 
@@ -55,72 +55,72 @@ static void create_lua_init_file(void)
  */
 static void spiff_init(void)
 {
-	ESP_LOGI(TAG, "Initializing SPIFFS");
+  ESP_LOGI(TAG, "Initializing SPIFFS");
 
-	esp_err_t ret = esp_vfs_spiffs_register(&conf);
-	if (ret != ESP_OK) {
-        if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem"); 
-        } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find SPIFFS partition");
-        } else {
-            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
-        }
-        return;
-    } 
-	
-	size_t total = 0, used = 0;
-    ret = esp_spiffs_info(conf.partition_label, &total, &used);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
-        esp_spiffs_format(conf.partition_label);
-        return;
+  esp_err_t ret = esp_vfs_spiffs_register(&conf);
+  if (ret != ESP_OK) {
+    if (ret == ESP_FAIL) {
+      ESP_LOGE(TAG, "Failed to mount or format filesystem"); 
+    } else if (ret == ESP_ERR_NOT_FOUND) {
+      ESP_LOGE(TAG, "Failed to find SPIFFS partition");
     } else {
-        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
-#ifdef WRITE_TEST_LUA_FILE
-		create_lua_init_file();
-#endif
+      ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
     }
+    return;
+  } 
+	
+  size_t total = 0, used = 0;
+  ret = esp_spiffs_info(conf.partition_label, &total, &used);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
+    esp_spiffs_format(conf.partition_label);
+    return;
+  } else {
+    ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+#ifdef WRITE_TEST_LUA_FILE
+    create_lua_init_file();
+#endif
+  }
 }
 
 void app_main(void)
 {
-	my_uart_init();
-	vTaskDelay(50 / portTICK_PERIOD_MS);
-	printf("\n\n");
-	ESP_LOGI(TAG, "App main init");
-	print_info();
-    /* Print chip information */
-    esp_chip_info_t chip_info;
-    uint32_t flash_size;
-    esp_chip_info(&chip_info);
-    ESP_LOGI(TAG, "This is %s chip with %d CPU core(s), WiFi%s%s%s, ",
+  vTaskDelay(50 / portTICK_PERIOD_MS);
+  printf("\n\n");
+  print_info();
+  /* Print chip information */
+  esp_chip_info_t chip_info;
+  uint32_t flash_size;
+  esp_chip_info(&chip_info);
+  ESP_LOGI(TAG, "This is %s chip with %d CPU core(s), WiFi%s%s%s, ",
            CONFIG_IDF_TARGET,
            chip_info.cores,
            (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "",
            (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "",
            (chip_info.features & CHIP_FEATURE_IEEE802154) ? ", 802.15.4 (Zigbee/Thread)" : "");
 
-    unsigned major_rev = chip_info.revision / 100;
-    unsigned minor_rev = chip_info.revision % 100;
-    ESP_LOGI(TAG, "silicon revision v%d.%d, ", major_rev, minor_rev);
-    if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
-        printf("Get flash size failed");
-        return;
-    }
+  unsigned major_rev = chip_info.revision / 100;
+  unsigned minor_rev = chip_info.revision % 100;
+  ESP_LOGI(TAG, "silicon revision v%d.%d, ", major_rev, minor_rev);
+  if(esp_flash_get_size(NULL, &flash_size) != ESP_OK) {
+    printf("Get flash size failed");
+    return;
+  }
 
-    ESP_LOGI(TAG, "%" PRIu32 "MB %s flash\n", flash_size / (uint32_t)(1024 * 1024),
+  ESP_LOGI(TAG, "%" PRIu32 "MB %s flash\n", flash_size / (uint32_t)(1024 * 1024),
            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
-    //ESP_LOGI(TAG, "Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
-	ESP_LOGI(TAG, "ready to init uart0");
+  ESP_LOGI(TAG, "Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+  ESP_LOGI(TAG, "ready to init uart0");
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  my_uart_init();
 	
-	spiff_init();
+  spiff_init();
 
-    char *lua_argv[] = {(char *)"lua", (char *)"-i", NULL};
-    lua_main(2, lua_argv);
+  char *lua_argv[] = {(char *)"lua", (char *)"-i", NULL};
+  lua_main(2, lua_argv);
 	
-	while(1) {
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
-	}
+  while(1) {
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
 }
