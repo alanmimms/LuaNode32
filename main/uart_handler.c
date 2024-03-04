@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
@@ -9,11 +10,13 @@
 #include "lua.h"
 #include "utils.h"
 
+#define DO_UNITTEST	0
+
 #define OUR_UART UART_NUM_0
 #define TXD_PIN GPIO_NUM_43
 #define RXD_PIN GPIO_NUM_44
 
-#define UARTTASK_STACK_SIZE	3072
+#define UARTTASK_STACK_SIZE	4096
 #define RX_BUF_SIZE 		1024 /* MUST be power of two */
 #define RX_MOD_MASK		(RX_BUF_SIZE - 1)
 #if (RX_BUF_SIZE & (RX_BUF_SIZE - 1)) != 0
@@ -109,8 +112,6 @@ static void uartTask(void *arg)
 
     switch (event.type) {
     case UART_DATA:
-      ESP_LOGI(TAG, "UART_DATA event size=%d used=%d unused=%d",
-	       event.size, (int) rxRingUsedSpace(), (int) rxRingUnusedSpace());
 
       do {
 	int readLen = min(sizeof(tempBuf), min(event.size, rxRingUnusedSpace()));
@@ -132,7 +133,7 @@ static void uartTask(void *arg)
 	  lua_handle_input(false);
 	  event.size -= len;
 	} else {
-	  ESP_LOGI(TAG, "UART_DATA uart_read_bytes len=%d", len);
+	  ESP_LOGI(TAG, "UART_DATA uart_read_bytes weird len=%d", len);
 	}
       } while (event.size > 0);
 
@@ -146,8 +147,58 @@ static void uartTask(void *arg)
 }
 
 
+#if DO_UNITTEST
+static void unitTest(void) {
+  ESP_LOGI(TAG, "unit test");
+
+  assert(rxRingUsedSpace() == 0);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 1);
+
+  rxRingPut(0x01);
+  assert(rxRingUsedSpace() == 1);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 2);
+
+  rxRingPut(0x02);
+  assert(rxRingUsedSpace() == 2);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 3);
+
+  rxRingPut(0x03);
+  assert(rxRingUsedSpace() == 3);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 4);
+
+  assert(rxRingGet() == 0x01);
+  assert(rxRingUsedSpace() == 2);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 3);
+
+  assert(rxRingGet() == 0x02);
+  assert(rxRingUsedSpace() == 1);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 2);
+
+  assert(rxRingGet() == 0x03);
+  assert(rxRingUsedSpace() == 0);
+  assert(rxRingUnusedSpace() == RX_BUF_SIZE - 1);
+
+  // Fill the empty ring
+  for (int k=0; rxRingUsedSpace() < RX_BUF_SIZE - 1; ++k) rxRingPut((uint8_t) k);
+  assert(rxRingUsedSpace() == RX_BUF_SIZE - 1);
+  assert(rxRingUnusedSpace() == 0);
+
+  // Over-fill the ring
+  ESP_LOGI(TAG, "Note next five 'ring is full' errors are expected");
+  rxRingPut((uint8_t) 0xFF);
+  rxRingPut((uint8_t) 0xFF);
+  rxRingPut((uint8_t) 0xFF);
+  rxRingPut((uint8_t) 0xFF);
+  rxRingPut((uint8_t) 0xFF);
+
+  // Empty the ring and check bytes as we go
+  for (int k=0; rxRingUsedSpace() != 0; ++k) assert(rxRingGet() == (uint8_t) k);
+}
+#endif
+
+
 void my_uart_init(void) {
-  ESP_LOGI(TAG, "My uart init\n");
+  ESP_LOGI(TAG, "My uart init");
   uart_flush(OUR_UART);
 
   const uart_config_t uart_config = {
@@ -164,7 +215,12 @@ void my_uart_init(void) {
   ESP_ERROR_CHECK(uart_param_config(OUR_UART, &uart_config));
   ESP_ERROR_CHECK(uart_set_pin(OUR_UART, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
   ESP_ERROR_CHECK(uart_set_rts(OUR_UART, 1));
-  vTaskDelay(100 / portTICK_PERIOD_MS);
+  vTaskDelay(300 / portTICK_PERIOD_MS);
+  ESP_LOGI(TAG, "");
+
+#if DO_UNITTEST
+  unitTest();
+#endif
 
   xTaskCreate(uartTask, "uartTask", UARTTASK_STACK_SIZE, NULL, 10, NULL);
 }
